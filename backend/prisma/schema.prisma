@@ -1,0 +1,371 @@
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CLIENT
+  PROFESSIONAL
+  ADMIN
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CANCELED
+  FINISHED
+}
+
+enum PaymentMethod {
+  PIX
+  CARD
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  AWAITING_CONFIRMATION
+  PAID
+  CANCELED
+}
+
+enum RedemptionStatus {
+  PENDING
+  APPROVED
+  CANCELED
+}
+
+enum ClientPlanStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELED
+}
+
+enum ProductOrderStatus {
+  RESERVED
+  PRE_ORDER_REQUESTED
+  UNDER_REVIEW
+  ORDERED
+  AVAILABLE_FOR_PICKUP
+  DELIVERED
+  CANCELED
+}
+
+enum ProductOrderType {
+  RESERVATION
+  PRE_ORDER
+}
+
+enum RewardType {
+  SERVICE
+  PRODUCT
+  DISCOUNT
+  GIFT
+}
+
+model User {
+  id                String             @id @default(uuid())
+  name              String
+  email             String             @unique
+  phone             String
+  birthDate         DateTime?          @db.Date
+  passwordHash      String
+  role              Role               @default(CLIENT)
+  avatarUrl         String?
+  points            Int                @default(0)
+  level             Int                @default(1)
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  professional      Professional?
+  appointments      Appointment[]      @relation("ClientAppointments")
+  payments          Payment[]          @relation("ClientPayments")
+  rewardRedemptions RewardRedemption[] @relation("ClientRewardRedemptions")
+  clientPlans       ClientPlan[]       @relation("ClientPlans")
+  productOrders     ProductOrder[]     @relation("ClientProductOrders")
+
+  @@index([role])
+  @@index([active])
+  @@map("users")
+}
+
+model Professional {
+  id                String        @id @default(uuid())
+  userId            String        @unique
+  specialty         String
+  commissionPercent Decimal       @default(0) @db.Decimal(5, 2)
+  online            Boolean       @default(false)
+  active            Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments      Appointment[]
+  timeBlocks        ProfessionalTimeBlock[]
+
+  @@index([active])
+  @@map("professionals")
+}
+
+model Service {
+  id              String        @id @default(uuid())
+  name            String        @unique
+  description     String?
+  price           Decimal       @db.Decimal(10, 2)
+  durationLabel   String?
+  durationMinutes Int
+  imageUrl        String?
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  appointments    Appointment[]
+  rewards         Reward[]
+
+  @@index([active])
+  @@map("services")
+}
+
+model BarbershopProfile {
+  id             String   @id
+  name           String
+  address        String
+  phone          String
+  whatsappUrl    String
+  instagramUrl   String
+  openingHours   Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("barbershop_profiles")
+}
+
+model Appointment {
+  id             String            @id @default(uuid())
+  clientId       String
+  professionalId String
+  serviceId      String
+  date           DateTime          @db.Date
+  startTime      DateTime          @db.Time(0)
+  endTime        DateTime          @db.Time(0)
+  status         AppointmentStatus @default(SCHEDULED)
+  notes          String?
+  totalValue     Decimal           @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod?
+  isExtraSlot    Boolean           @default(false)
+  cancelReason   String?
+  canceledById   String?
+  canceledAt     DateTime?
+  confirmedById  String?
+  confirmedAt    DateTime?
+  finishedById   String?
+  finishedAt     DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  client         User              @relation("ClientAppointments", fields: [clientId], references: [id])
+  professional   Professional      @relation(fields: [professionalId], references: [id])
+  service        Service           @relation(fields: [serviceId], references: [id])
+  payment        Payment?
+
+  @@index([clientId])
+  @@index([professionalId])
+  @@index([serviceId])
+  @@index([date, startTime])
+  @@map("appointments")
+}
+
+model ProfessionalTimeBlock {
+  id             String       @id @default(uuid())
+  professionalId String
+  date           DateTime     @db.Date
+  startTime      DateTime     @db.Time(0)
+  endTime        DateTime     @db.Time(0)
+  reason         String?
+  createdAt      DateTime     @default(now())
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId, date, startTime])
+  @@map("professional_time_blocks")
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  appointmentId     String        @unique
+  clientId          String
+  amount            Decimal       @db.Decimal(10, 2)
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  infinityPayUrl    String?
+  receiptUrl        String?
+  receiptFileName   String?
+  receiptUploadedAt DateTime?
+  confirmedById     String?
+  confirmedAt       DateTime?
+  confirmationNote  String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  appointment       Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  client            User          @relation("ClientPayments", fields: [clientId], references: [id])
+
+  @@index([clientId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Product {
+  id            String             @id @default(uuid())
+  name          String             @unique
+  description   String?
+  price         Decimal            @db.Decimal(10, 2)
+  costPrice     Decimal            @db.Decimal(10, 2)
+  stock         Int                @default(0)
+  reservedStock Int                @default(0)
+  category      String             @default("Geral")
+  imageUrl      String?
+  active        Boolean            @default(true)
+  allowPreOrder Boolean            @default(false)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  orderItems    ProductOrderItem[]
+  rewards       Reward[]
+
+  @@index([active])
+  @@index([category])
+  @@map("products")
+}
+
+model Plan {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  description String?
+  price       Decimal      @db.Decimal(10, 2)
+  benefits    String[]
+  active      Boolean      @default(true)
+  highlighted Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  clientPlans ClientPlan[]
+
+  @@index([active])
+  @@map("plans")
+}
+
+model ClientPlan {
+  id            String           @id @default(uuid())
+  clientId      String
+  planId        String
+  status        ClientPlanStatus @default(PENDING)
+  startDate     DateTime?
+  endDate       DateTime?
+  paymentStatus PaymentStatus    @default(AWAITING_CONFIRMATION)
+  infinityPayUrl String?
+  receiptUrl     String?
+  receiptFileName String?
+  receiptUploadedAt DateTime?
+  confirmedById String?
+  confirmedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  client        User             @relation("ClientPlans", fields: [clientId], references: [id])
+  plan          Plan             @relation(fields: [planId], references: [id])
+
+  @@index([clientId])
+  @@index([planId])
+  @@index([status])
+  @@map("client_plans")
+}
+
+model ProductOrder {
+  id                   String             @id @default(uuid())
+  clientId             String
+  status               ProductOrderStatus @default(RESERVED)
+  orderType            ProductOrderType
+  paymentStatus        PaymentStatus      @default(PENDING)
+  paymentMethod        PaymentMethod?
+  infinityPayUrl       String?
+  total                Decimal            @db.Decimal(10, 2)
+  notes                String?
+  receiptUrl           String?
+  receiptFileName      String?
+  receiptUploadedAt    DateTime?
+  paymentConfirmedById String?
+  paymentConfirmedAt   DateTime?
+  deliveredById        String?
+  deliveredAt          DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  client               User               @relation("ClientProductOrders", fields: [clientId], references: [id])
+  items                ProductOrderItem[]
+  rewardRedemption     RewardRedemption?
+
+  @@index([clientId])
+  @@index([status])
+  @@index([orderType])
+  @@map("product_orders")
+}
+
+model ProductOrderItem {
+  id        String       @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  unitPrice Decimal      @db.Decimal(10, 2)
+  subtotal  Decimal      @db.Decimal(10, 2)
+  order     ProductOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product      @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("product_order_items")
+}
+
+model Reward {
+  id                String             @id @default(uuid())
+  name              String             @unique
+  description       String?
+  requiredPoints    Int
+  rewardType        RewardType         @default(SERVICE)
+  serviceId         String?
+  productId         String?
+  discountValue     Decimal?           @db.Decimal(10, 2)
+  imageUrl          String?
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  service           Service?           @relation(fields: [serviceId], references: [id])
+  product           Product?           @relation(fields: [productId], references: [id])
+  rewardRedemptions RewardRedemption[]
+
+  @@index([active])
+  @@index([rewardType])
+  @@index([serviceId])
+  @@index([productId])
+  @@map("rewards")
+}
+
+model RewardRedemption {
+  id             String           @id @default(uuid())
+  clientId       String
+  rewardId       String
+  productOrderId String?          @unique
+  pointsUsed     Int
+  status         RedemptionStatus @default(PENDING)
+  code           String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  client         User             @relation("ClientRewardRedemptions", fields: [clientId], references: [id])
+  reward         Reward           @relation(fields: [rewardId], references: [id])
+  productOrder   ProductOrder?    @relation(fields: [productOrderId], references: [id])
+
+  @@index([clientId])
+  @@index([rewardId])
+  @@index([status])
+  @@map("reward_redemptions")
+}

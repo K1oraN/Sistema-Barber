@@ -1,0 +1,30 @@
+import { Router } from "express";
+import { healthController } from "../controllers/healthController.js";
+import { appointmentRoutes } from "./appointmentRoutes.js";
+import { adminRoutes } from "./adminRoutes.js";
+import { authRoutes } from "./authRoutes.js";
+import { paymentRoutes } from "./paymentRoutes.js";
+import { planRoutes } from "./planRoutes.js";
+import { productRoutes } from "./productRoutes.js";
+import { productOrderRoutes } from "./productOrderRoutes.js";
+import { professionalRoutes } from "./professionalRoutes.js";
+import { rewardRedemptionRoutes } from "./rewardRedemptionRoutes.js";
+import { rewardRoutes } from "./rewardRoutes.js";
+import { serviceRoutes } from "./serviceRoutes.js";
+import { userRoutes } from "./userRoutes.js";
+
+export const routes = Router();
+
+routes.get("/health", healthController);
+routes.use("/admin", adminRoutes);
+routes.use("/auth", authRoutes);
+routes.use("/users", userRoutes);
+routes.use("/services", serviceRoutes);
+routes.use("/professionals", professionalRoutes);
+routes.use("/products", productRoutes);
+routes.use("/product-orders", productOrderRoutes);
+routes.use("/plans", planRoutes);
+routes.use("/rewards", rewardRoutes);
+routes.use("/appointments", appointmentRoutes);
+routes.use("/payments", paymentRoutes);
+routes.use("/reward-redemptions", rewardRedemptionRoutes);
